@@ -1,7 +1,7 @@
 // 🚀 ProductRegistration - Componente usando Lighthouse.storage
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { uploadSingleFileLighthouse, getLighthouseTokenInfo } from '../utils/filecoinStorage.web3'
-import { registerProduct, initializeContract, getContractInfo } from '../utils/contractIntegration'
+import { registerProduct, getContractInfo } from '../utils/contractIntegration'
 import './ProductRegistrationNew.css'
 
 export default function ProductRegistrationNew({ userAddress }) {
@@ -9,8 +9,33 @@ export default function ProductRegistrationNew({ userAddress }) {
     name: '',
     description: '',
     origin: '',
-    file: null
+    // file: null, // Comentado: archivo
+    lat: null,
+    lng: null
   })
+  const [locationLoading, setLocationLoading] = useState(false)
+  // Obtener ubicación actual al cargar el componente
+  useEffect(() => {
+    setLocationLoading(true)
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setProduct(prev => ({
+            ...prev,
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            origin: `${pos.coords.latitude},${pos.coords.longitude}`
+          }))
+          setLocationLoading(false)
+        },
+        (err) => {
+          setLocationLoading(false)
+        }
+      )
+    } else {
+      setLocationLoading(false)
+    }
+  }, [])
   
   const [uploading, setUploading] = useState(false)
   const [result, setResult] = useState(null)
@@ -23,12 +48,11 @@ export default function ProductRegistrationNew({ userAddress }) {
     setProduct(prev => ({ ...prev, [name]: value }))
   }
 
-  // 📁 Manejar selección de archivo
-  const handleFileChange = (e) => {
-    const file = e.target.files[0]
-    setProduct(prev => ({ ...prev, file }))
-    console.log('📁 Archivo seleccionado:', file?.name)
-  }
+  // const handleFileChange = (e) => {
+  //   const file = e.target.files[0]
+  //   setProduct(prev => ({ ...prev, file }))
+  //   console.log('📁 Archivo seleccionado:', file?.name)
+  // }
 
   // 📊 Verificar estado de Lighthouse
   const checkLighthouseStatus = async () => {
@@ -68,10 +92,10 @@ export default function ProductRegistrationNew({ userAddress }) {
       return
     }
     
-    if (!product.file) {
-      alert('Por favor selecciona un archivo')
-      return
-    }
+  // if (!product.file) {
+  //   alert('Por favor selecciona un archivo')
+  //   return
+  // }
 
     if (!product.name.trim()) {
       alert('Por favor ingresa el nombre del producto')
@@ -84,26 +108,20 @@ export default function ProductRegistrationNew({ userAddress }) {
     try {
       console.log('🚀 Iniciando registro de producto:', product.name)
       
-      // Paso 1: Subir archivo con Lighthouse.storage
-      console.log('📡 Subiendo archivo con Lighthouse...')
-      const lighthouseResult = await uploadSingleFileLighthouse(product.file)
-      const fileCID = lighthouseResult.Hash
-      const storageProvider = 'Lighthouse'
-      
-      console.log('✅ Archivo subido con Lighthouse:', fileCID)
-      
-      // Paso 2: Crear metadatos del producto
+      // Paso 1: Crear metadatos del producto (sin archivo)
       const productData = {
         name: product.name,
         description: product.description,
         origin: product.origin,
-        fileCID: fileCID,
-        storageProvider,
+        lat: product.lat,
+        lng: product.lng,
+        // fileCID: null, // Comentado: archivo
+        // storageProvider: null, // Comentado: archivo
         timestamp: new Date().toISOString(),
         creator: userAddress
       }
 
-      // Paso 3: Subir metadatos a IPFS también
+      // Paso 2: Subir metadatos a IPFS
       console.log('📡 Subiendo metadatos del producto...')
       const metadataFile = new File(
         [JSON.stringify(productData, null, 2)], 
@@ -116,7 +134,7 @@ export default function ProductRegistrationNew({ userAddress }) {
       
       console.log('✅ Metadatos subidos:', metadataCID)
 
-      // Paso 4: Registrar en el smart contract
+      // Paso 3: Registrar en el smart contract
       console.log('🔗 Registrando en smart contract...')
       console.log('🔗 MetadataCID para contrato:', metadataCID)
       
@@ -126,26 +144,22 @@ export default function ProductRegistrationNew({ userAddress }) {
         
         setResult({
           success: true,
-          cid: fileCID,
           metadataCID,
           txHash: contractResult.hash || contractResult,
           blockNumber: contractResult.blockNumber,
           gasUsed: contractResult.gasUsed,
           productData,
-          storageProvider,
-          ipfsUrl: `https://w3s.link/ipfs/${fileCID}`,
           metadataUrl: `https://w3s.link/ipfs/${metadataCID}`,
-          message: `Producto registrado exitosamente en blockchain y ${storageProvider}`
+          productId: contractResult.productId || contractResult.id || null,
+          message: `Producto registrado exitosamente en blockchain.`
         })
         
       } catch (contractError) {
         console.error('❌ Error en smart contract:', contractError)
-        // Aún mostramos el archivo subido pero indicamos el error del contrato
         setResult({
           success: false,
-          cid: fileCID,
           metadataCID,
-          error: `Archivo subido correctamente, pero falló el registro en blockchain: ${contractError.message}`,
+          error: `Falló el registro en blockchain: ${contractError.message}`,
           message: 'Error en registro de blockchain',
           partialSuccess: true
         })
@@ -266,17 +280,39 @@ export default function ProductRegistrationNew({ userAddress }) {
         </div>
 
         <div className="form-group">
-          <label htmlFor="origin">🌍 Origen</label>
-          <input
-            type="text"
-            id="origin"
-            name="origin"
-            value={product.origin}
-            onChange={handleInputChange}
-            placeholder="Ej: Finca La Esperanza, Colombia"
-          />
+          <label htmlFor="origin">🌍 Ubicación actual</label>
+          {locationLoading ? (
+            <p>Obteniendo ubicación...</p>
+          ) : product.lat && product.lng ? (
+            <>
+              <input
+                type="text"
+                id="origin"
+                name="origin"
+                value={product.origin}
+                readOnly
+              />
+              <div style={{marginTop: '0.5em'}}>
+                <iframe
+                  title="map"
+                  width="100%"
+                  height="200"
+                  frameBorder="0"
+                  style={{border:0}}
+                  src={`https://www.openstreetmap.org/export/embed.html?bbox=${product.lng-0.01}%2C${product.lat-0.01}%2C${product.lng+0.01}%2C${product.lat+0.01}&layer=mapnik&marker=${product.lat}%2C${product.lng}`}
+                  allowFullScreen
+                ></iframe>
+                <div>
+                  <a href={`https://www.openstreetmap.org/?mlat=${product.lat}&mlon=${product.lng}#map=18/${product.lat}/${product.lng}`} target="_blank" rel="noopener noreferrer">Ver mapa grande</a>
+                </div>
+              </div>
+            </>
+          ) : (
+            <p>No se pudo obtener la ubicación.</p>
+          )}
         </div>
 
+        {/*
         <div className="form-group">
           <label htmlFor="file">📁 Archivo de Evidencia</label>
           <input
@@ -291,11 +327,12 @@ export default function ProductRegistrationNew({ userAddress }) {
             </p>
           )}
         </div>
+        */}
 
         <button 
           type="submit" 
           className="submit-btn"
-          disabled={uploading || !product.file || !product.name.trim() || !userAddress}
+          disabled={uploading|| !product.name.trim() || !userAddress}
         >
           {uploading ? '⏳ Registrando en blockchain...' : 
            !userAddress ? '🔒 Conecta wallet para registrar' : 
@@ -308,20 +345,11 @@ export default function ProductRegistrationNew({ userAddress }) {
         <div className={`result ${result.success ? 'success' : 'error'}`}>
           <h3>{result.success ? '✅ Éxito' : '❌ Error'}</h3>
           <p>{result.message}</p>
-          
           {result.success && (
             <div className="success-details">
-              <p><strong>📋 Archivo CID:</strong> <code>{result.cid}</code></p>
               <p><strong>📄 Metadatos CID:</strong> <code>{result.metadataCID}</code></p>
               <p><strong>🔗 TX Hash:</strong> <code>{result.txHash}</code></p>
-              <p><strong>🔧 Almacenado con:</strong> <span className="provider-badge">{result.storageProvider}</span></p>
               <div className="links-section">
-                <p>
-                  <strong>� Ver archivo:</strong>{' '}
-                  <a href={result.ipfsUrl} target="_blank" rel="noopener noreferrer">
-                    IPFS Link
-                  </a>
-                </p>
                 <p>
                   <strong>📊 Ver metadatos:</strong>{' '}
                   <a href={result.metadataUrl} target="_blank" rel="noopener noreferrer">
@@ -333,6 +361,13 @@ export default function ProductRegistrationNew({ userAddress }) {
                 <summary>📊 Datos del Producto</summary>
                 <pre>{JSON.stringify(result.productData, null, 2)}</pre>
               </details>
+              {result.productId && (
+                <div style={{marginTop: '1em'}}>
+                  <strong>➡️ Generar eventos para este producto:</strong>
+                  <br />
+                  <a href={`/evento?productId=${result.productId}`}>Ir a eventos de trazabilidad</a>
+                </div>
+              )}
             </div>
           )}
           

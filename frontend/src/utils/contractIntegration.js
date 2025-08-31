@@ -84,8 +84,11 @@ export const registerProduct = async (metadataCID) => {
     console.log('⏳ Esperando confirmación...')
     const receipt = await tx.wait()
     console.log('✅ Transacción confirmada:', receipt)
-    
+    console.log({
+      productId: receipt.logs[0].args[0],
+    })
     return {
+      productId: receipt.logs[0].args[0],
       hash: tx.hash,
       blockNumber: receipt.blockNumber,
       gasUsed: receipt.gasUsed.toString()
@@ -111,11 +114,14 @@ export const addTraceEvent = async (productId, status, eventMetadataCID) => {
 
 export const getProductEvents = async (productId) => {
   try {
-    const events = await contract.getProductEvents(productId)
-    return events
+    if (!contract) {
+      await initializeContract();
+    }
+    const events = await contract.getProductEvents(productId);
+    return events;
   } catch (error) {
-    console.error('Error getting product events:', error)
-    throw error
+    console.error('Error getting product events:', error);
+    throw error;
   }
 }
 
@@ -143,6 +149,18 @@ export const getContractInfo = async () => {
       isReady: false,
       error: error.message
     }
+  }
+}
+export const getProduct = async (productId) => {
+  try {
+    if (!contract) {
+      await initializeContract();
+    }
+    const product = await contract.products(productId);
+    return product;
+  } catch (error) {
+    console.error('Error getting product:', error);
+    throw error;
   }
 }
 

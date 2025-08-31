@@ -7,6 +7,8 @@ import WalletLogin from './components/WalletLogin'
 import ProtectedRoute from './components/ProtectedRoute'
 import ProductRegistrationNew from './components/ProductRegistrationNew'
 import ProductQuery from './components/ProductQuery'
+import TraceEventForm from './components/TraceEventForm'
+import { BrowserRouter as Router, Routes, Route, Link, useNavigate } from 'react-router-dom'
 import { getSession } from './utils/sessionManager'
 import './App.css'
 
@@ -29,30 +31,50 @@ const config = createConfig({
 function App() {
   const [user, setUser] = useState(getSession())
 
-  return (
-    <WagmiConfig config={config}>
-      <div className="App">
-        <header className="app-header">
-          <h1>Sistema de Trazabilidad en Filecoin</h1>
-          <WalletLogin onLogin={setUser} />
-        </header>
-        
-        <main className="app-main">
-          <ProtectedRoute user={user}>
-            <section className="registration-section">
-              <h2>Registro de Nuevo Producto</h2>
-              <ProductRegistrationNew userAddress={user?.address} />
-            </section>
-          </ProtectedRoute>
-          
-          <section className="query-section">
-            <h2>Consulta de Producto</h2>
-            <ProductQuery />
-          </section>
-        </main>
-      </div>
-    </WagmiConfig>
-  )
+    const [selectedProductId, setSelectedProductId] = useState('')
+
+    return (
+      <WagmiConfig config={config}>
+        <Router>
+          <div className="App">
+            <header className="app-header navbar">
+              <div className="navbar-brand">
+                <span>Sistema de Trazabilidad en Filecoin</span>
+              </div>
+              <nav className="navbar-menu">
+                <Link to="/registro" className="tab-link">Registro</Link>
+                <Link to="/consulta" className="tab-link">Consulta</Link>
+                <Link to="/evento" className="tab-link">Evento</Link>
+              </nav>
+              <div className="navbar-user">
+                <WalletLogin onLogin={setUser} />
+              </div>
+            </header>
+            <main className="app-main">
+              <Routes>
+                <Route path="/registro" element={
+                  <section className="registration-section">
+                    <ProductRegistrationNew userAddress={user?.address} />
+                  </section>
+                } />
+                <Route path="/consulta" element={
+                  <section className="query-section">
+                    <ProductQuery />
+                  
+                  </section>
+                } />
+                <Route path="/evento" element={
+                  <section className="event-section">
+                    <TraceEventForm productId={selectedProductId} />
+                  </section>
+                } />
+                <Route path="*" element={<div>Selecciona una opción en las pestañas.</div>} />
+              </Routes>
+            </main>
+          </div>
+        </Router>
+      </WagmiConfig>
+    )
 }
 
 export default App
